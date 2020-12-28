@@ -1,0 +1,99 @@
+<html lang="en">
+  <head>
+<!-- -------------------START CSS ---------------- -->
+  <style>
+  body{
+    font-family:sans-serif, arial;
+  }
+  table{
+    display:inline-block;
+    vertical-align: top;
+  }
+  td{
+    padding-left: 10
+  }
+  .protein{
+    height: 5px;
+    padding-top: 20px;
+    display:inline-block;
+  }
+
+  /* #A{
+    background-color: #555;
+  }
+
+  #B{
+    background-color: #FF0000;
+  }
+
+  #C{
+    background-color: #FF8492;
+  }
+
+  #D{
+    background-color: #FFFF90;
+  } */
+
+  </style>
+<!-- -------------- END CSS --------------------- -->
+  </head>
+
+  <body>
+  <table>
+    <tr>
+      <th>Num</th>
+      <th>Enzyme</th>
+      <th>PFAM</th>
+      <th>Color</th>
+    </tr>
+    {% for key, item in enzymes.items() %}
+      <tr>
+        <td>{{ key }}</td>
+        <td>{{ item.label }}</td>
+        <td>{{ item.pfam[0] }}</td>
+        <td><div class="protein" style="background-color:#{{ item.color }}; width:{{ (item.size / 5) - 10 }}px"></div><div class="protein" style="background-color:transparent;
+                                               padding:0px;
+                                                 width:0;
+                                                height:5;
+                                                border-top: 10px solid transparent;
+                                                border-bottom:10px solid transparent;
+                                                border-left: 10px solid #{{ item.color }}"></div></td>
+      </tr>
+
+    {% endfor %}
+  </table>
+  <table>
+    <tr>
+      <th>Type</th>
+      <th>Count</th>
+      <th>BGC</th>
+    </tr>
+
+    {% for key, item in genotypes.items() %}
+    <tr>
+      <td>{{ key }}</td>
+      <td>{{ genotypes[key][1] }}</td>
+      <td>{% for enzyme in genotypes[key][0] %}
+        <div class="protein" style="background-color:#{{ enzymes[enzyme].color }}; width:{{ (enzymes[enzyme].size / 5) -10 }}px"></div><div class="protein" style="background-color:transparent;
+                                               padding:0px;
+                                                 width:0;
+                                                height:5;
+                                                border-top: 10px solid transparent;
+                                                border-bottom:10px solid transparent;
+                                                border-left: 10px solid #{{ enzymes[enzyme].color }}"></div>..
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+
+    <!-- <tr>
+      <td>0</td>
+      <td>
+        <div class="protein" id="A"></div>
+        <div class="protein" id="B"></div>
+        <div class="protein" id="C"></div>
+        <div class="protein" id="D"></div>
+      </td> -->
+  </table>
+  </body>
+</html>
