@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block maincontent %}
+<div class="time">
+  CYTOTYPER !!!
+</div>
+
+<form action="" method="post" novalidate enctype="multipart/form-data">
+  {{ form.hidden_tag() }}
+  <p>
+    Upload .sqlite file:
+    {{ form.user_upload}}
+  </p>
+  <p>
+    {{ form.match_direction() }} Match Direction?
+  </p>
+  <p>
+    {{ form.submit() }}
+  </p>
+</form>
+{% endblock %}
