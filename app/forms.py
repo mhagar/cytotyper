@@ -1,10 +1,11 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired
-from wtforms import BooleanField, SubmitField
-from wtforms.validators import DataRequired
+from wtforms import SubmitField, IntegerField
 
 
 class TestForm(FlaskForm):
     user_upload = FileField(validators=[FileRequired()])
-    match_direction = BooleanField('Match direction?')
+    user_upload_query = FileField(validators=[FileRequired()])
+    user_min_occurences = IntegerField()
+    user_min_gap_size = IntegerField()
     submit = SubmitField('GO!!')

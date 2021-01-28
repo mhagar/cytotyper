@@ -1,16 +1,44 @@
+body{
+  background-color: beige;
+  margin: auto;
+  max-width:600px;
+}
+
 .welcome{
   margin:auto;
   background-color: salmon;
+  max-width: 600px;
+}
+
+.infoBlurb{
+  background-color: #fcf7fc;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.submission{
+  background-color: pink;
+  padding: 20px;
+  margin-top: 20px;
 }
 
 h1{
   color: darkblue;
   font-family: monospace;
+  text-align: center;
 }
 
-.time{
-  margin:auto;
-  background-color: pink;
+i{
+  font-size: 12px;
   font-family: monospace;
-  color: darkred;
+  color: brown;
+}
+
+img{
+  margin-left: auto;
+  margin-right: auto;
+}
+
+input{
+  width:100px;
 }

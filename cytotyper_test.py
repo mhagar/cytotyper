@@ -1,11 +1,13 @@
 import pandas as pd
 import sqlite3
 import os
+from statistics import mode
 
-gap_unit = 300  # Number of bps before adding a 'gap' in the BGC legend
-min_occurence = 1  # Number of times a BGC type has to occur or it'llget tossed
+gap_unit = 500  # Number of bps before adding a 'gap' in the BGC legend
+min_occurence = 4  # Number of times a BGC type has to occur or it'llget tossed
+window_width = 10  # Number of 'steps' front and back to consider (center=stzf)
 
-# See "datastructures.pptx" for a diagram of the datastructures.
+# See "datastructures.md" for a diagram of the datastructures.
 
 
 def importdata(rawdata):
@@ -13,7 +15,7 @@ def importdata(rawdata):
     conn = sqlite3.connect(os.path.join('uploads', rawdata.filename))
 
     sqlquery = "id, num, family, ipro_family, rel_start, rel_stop, \
-                direction, gene_key, start"
+                direction, gene_key, start, color"
     main_df = pd.read_sql_query(f"SELECT {sqlquery} FROM neighbors", conn)
 
     # 'attributes' table in db, index corresponds to gene key in 'neighbors'!
@@ -39,19 +41,24 @@ def importdata(rawdata):
     return main_df, organism_df
 
 
-def gene_query():
+class query():
     # Just a test query for now.
-    global query
-    query = {1: ['PF06325', 'IPR025799', 'IPR029063'],
-             2: ['PF00355', 'IPR036922', 'IPR017941'],
-             3: ['PF13535', 'IPR011761'],
-             4: ['PF01425', 'IPR036928', 'IPR023631']}
+    def __init__(self, pfams, labels):
+        self.data = 'call parse_dataset() first'
+        self.pfams = pfams
+        self.labels = labels
+        # For now this generates an empty dict {1: [], 2: []}
+        # for each item in query.pfams
+        self.colors = {k: [] for k, v in self.pfams.items()}
+        self.lengths = {k: [] for k, v in self.pfams.items()}
 
-    global query_legend
-    query_legend = {1: 'PrmA',
-                    2: 'Reiske',
-                    3: 'ATP-grasp',
-                    4: 'Amidase'}
+    def collapse_colors_lengths(self):
+        self.colors = {k: mode(v) for k, v in self.colors.items()}
+        self.lengths = {k: mode(v) for k, v in self.lengths.items()}
+
+        # in case the mode returns multiple values instead of one:
+        self.colors = {k: v.split(',')[0] for k, v in self.colors.items()}
+        # self.lengths = {k: v.split(',')[0] for k, v in self.lengths.items()}
 
 
 class gene_hit:
@@ -89,7 +96,7 @@ class cluster:
         self.hash = []
 
 
-def parse_cluster(cluster, attributes):
+def parse_cluster(cluster, attributes, query):
     # for every row in the gene cluster table..
     data = cluster.data
     if isinstance(data, pd.DataFrame) is False:
@@ -106,13 +113,13 @@ def parse_cluster(cluster, attributes):
                          if isinstance(x, gene_hit)]:
                 # add an entry for "stzF".
                 hit = gene_hit(pfamkey=0,
-                               direction='normal',
+                               direction=attributes['direction'],
                                rel_start=0,
                                rel_stop=0)
                 cluster.summary.append(hit)
 
         # for every item in the query .
-        for pfamkey, pfams in query.items():
+        for pfamkey, pfams in query.pfams.items():
             # if there's a match between a label's pfams and the cluster table-
             if [x for x in pfams if x in data.loc[i, 'family']] != []:
                 # create a 'gene_hit' object..
@@ -123,6 +130,10 @@ def parse_cluster(cluster, attributes):
 
                 cluster.summary.append(hit)
                 hit_flag = 1
+
+                # append the hit's color + length to query.color and .length
+                query.colors[pfamkey].append(data.loc[i, 'color'])
+                query.lengths[pfamkey].append(hit.length)
 
         # if this row didn't match anything in the query..
         if hit_flag == 0:
@@ -156,17 +167,34 @@ def parse_cluster(cluster, attributes):
                 direction = -1
             cluster.hash.append(str(item.pfamkey * direction))
 
+    # Trimming cluster.hash to the window_width variable:
+    if '0' in cluster.hash:
+        center = cluster.hash.index('0')
+        start = max((center - window_width), 0)  # subtract but minimum 0
+        end = min((center + window_width), (len(cluster.hash) - 1))
+        cluster.hash = cluster.hash[start:end]
 
-def parse_dataset(neighbor_table, attributes_table):
+        # removing all trailing 'G's at beginning and end
+        m = {k: v for (k, v) in enumerate(cluster.hash) if v != 'G'}
+        start, end = min(m.keys()), (max(m.keys()) + 1)
+        cluster.hash = cluster.hash[start:end]
+
+
+def parse_dataset(neighbor_table, attributes_table, query):
     parsed_dataset = {}
     data = attributes_table
+    query.data = neighbor_table
     for i in range(1, len(data)+1):
         c = cluster(data=groupdata(neighbor_table, i),
                     gene_key=i,
                     accession=data['accession'].loc[i],
                     organism_id=data['strain'].loc[i])
-        parse_cluster(c, data.loc[i])
-        parsed_dataset[i] = c
+        parse_cluster(c, data.loc[i], query)
+        if '0' in c.hash:  # for some reason some clusters dont have stzF (??)
+            parsed_dataset[i] = c
+
+    # collapse the list of colors+lengths encountered into single values
+    query.collapse_colors_lengths()
 
     return parsed_dataset
 
@@ -177,7 +205,7 @@ class genotype:
         self.gene_keys = []
         self.accessions = []
         self.organisms = []
-        self.string_hash = ""
+        self.string_hash = string_hash
 
 
 def bin_hashes(dataset):
@@ -194,7 +222,8 @@ def bin_hashes(dataset):
         if string_hash not in unique_string_hashes:
             # create a new entry
             unique_string_hashes[string_hash] = 0
-            genotypes[string_hash] = genotype(string_hash=string_hash)
+            genotypes[string_hash] = genotype(string_hash=string_hash.split(
+                                              ","))
 
         unique_string_hashes[string_hash] += 1
         genotypes[string_hash].count += 1
@@ -228,51 +257,20 @@ def generate_cytotable(genotypes):
     return pd.DataFrame.from_dict(d, orient='index')
 
 
-def analyze(filefield):
-    """
-    Input: a FileField object with a .filename property (string) that says
-    what the file is called in the /uploads directory
+class analysis:
+    def __init__(self, filefield, query):
+        """
+        Input:
+        - a FileField object with a .filename property (string) that says
+        what the file is called in the /uploads directory
+        - a <query> object
+        """
+        self.query = query
+        self.dataset = parse_dataset(importdata(filefield)[0],
+                                     importdata(filefield)[1],
+                                     query)
+        self.genotypes = bin_hashes(self.dataset)
+        self.cytotable = generate_cytotable(self.genotypes)
 
-    Returns: a tuple (genotypes dict, cytotable Dataframe)
-    """
-    gene_query()  # TODO: add a system for specifying query
-    dataset = parse_dataset(importdata(filefield)[0],
-                            importdata(filefield)[1])
-    genotypes = bin_hashes(dataset)
-    cytotable = generate_cytotable(genotypes)
-    return genotypes, cytotable
-
-
-# ### TEST GROUNDS
-# ###
-
-
-class test_input:
-    def __init__(self, filename):
-        self.filename = filename
-
-
-tinput = test_input('StzF-truncated.sqlite')
-
-analyze(tinput)
-
-import pdb; pdb.set_trace()
-#
-# tinput = test_input('StzF-SSN-Nov-26-2020.sqlite')
-# main_df = importdata(tinput)[0]
-# organism_df = importdata(tinput)[1]
-# gene_query()
-# # testkutz = cluster(groupdata(main_df, 533).reset_index())
-#
-# import pdb; pdb.set_trace()
-#
-# test = parse_dataset(main_df, organism_df)
-#
-# import pdb; pdb.set_trace()
-#
-# genotypes = bin_hashes(test)
-#
-# import pdb; pdb.set_trace()
-
-# ###TODO: export .csv for cytoscape
-# ###TODO: generate .html report of said genotypes above.
+# TODO: format html report so its purdy
+# TODO: implement hover/onclick info (accessions, gene names, organisms)
