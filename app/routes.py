@@ -6,7 +6,6 @@ import filewrap
 import cytotyper_test
 import query_parser
 import bgc_report_generator
-from werkzeug.utils import secure_filename
 
 
 def allowed_upload(filename):
